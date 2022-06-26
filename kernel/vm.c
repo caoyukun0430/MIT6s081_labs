@@ -289,6 +289,36 @@ freewalk(pagetable_t pagetable)
   kfree((void*)pagetable);
 }
 
+// It should take a pagetable_t argument, 
+// and print that pagetable in the format described below
+void
+pgtblprint(pagetable_t pagetable, int level) {
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V) { // 如果页表项有效
+      // 按格式打印页表项
+      printf("..");
+      for(int j=0;j<level;j++) {
+        printf(" ..");
+      }
+      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+
+      // 如果该节点不是叶节点，递归打印其子节点。
+      if((pte & (PTE_R|PTE_W|PTE_X)) == 0){
+        // this PTE points to a lower-level page table.
+        uint64 child = PTE2PA(pte);
+        pgtblprint((pagetable_t)child,level+1);
+      }
+    }
+  }
+}
+
+void vmprint(pagetable_t pagetable) {
+  printf("page table %p\n", pagetable);
+  pgtblprint(pagetable, 0);
+}
+
 // Free user memory pages,
 // then free page-table pages.
 void
