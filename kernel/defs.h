@@ -181,8 +181,13 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
-void            vmprint(pagetable_t pagetable); // 添加函数声明
-void            kvm_free_kernelpgtbl(pagetable_t pagetable);
+void            vmprint(pagetable_t); // 添加函数声明
+void            kvm_free_kernelpgtbl(pagetable_t);
+int             kvmcopymappings(pagetable_t, pagetable_t, uint64, uint64);
+uint64          kvmdealloc(pagetable_t, uint64, uint64);
+// 声明新函数原型
+int             copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len);
+int             copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max);
 
 // plic.c
 void            plicinit(void);
