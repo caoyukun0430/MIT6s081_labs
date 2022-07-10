@@ -113,6 +113,12 @@ found:
     return 0;
   }
 
+  // Allocate a trapframe page for alarm_trapframe.
+  if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){
+    release(&p->lock);
+    return 0;
+  }
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -126,6 +132,11 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  p->alarm_interval = 0;
+  p->alarm_handler = 0;
+  p->alarm_ticks = 0;
+  p->alarm_goingoff = 0;
 
   return p;
 }
@@ -150,6 +161,14 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+   if(p->alarm_trapframe)
+    kfree((void*)p->alarm_trapframe);
+  p->alarm_trapframe = 0;
+  p->alarm_interval = 0;
+  p->alarm_handler = 0;
+  p->alarm_ticks = 0;
+  p->alarm_goingoff = 0;
 }
 
 // Create a user page table for a given process,
