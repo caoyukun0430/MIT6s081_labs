@@ -76,30 +76,9 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // // give up the CPU if this is a timer interrupt.
-  // if(which_dev == 2)
-  //   yield();
-
   // give up the CPU if this is a timer interrupt.
-  // 在每次时钟中断的时候，如果进程有已经设置的时钟（alarm_interval != 0），则进行 alarm_ticks 倒数。
-  // 当 alarm_ticks 倒数到小于等于 0 的时候，如果没有正在处理的时钟，则尝试触发时钟handler，将原本的程序流保存起来（*alarm_trapframe = *trapframe），
-  // 然后通过修改 pc 寄存器的值，将程序流转跳到 alarm_handler 中，alarm_handler 执行完毕sigreturn()后再恢复原本的执行流（*trapframe = *alarm_trapframe）。
-  // 这样从原本程序执行流的视角，就是不可感知的中断了。 
-  if(which_dev == 2) {
-    if(p->alarm_interval != 0) { // 如果设定了时钟事件
-      if(p->alarm_ticks-- <= 0) { // 时钟倒计时 -1 tick，如果已经到达或超过设定的 tick 数
-        if(!p->alarm_goingoff) { // 确保没有时钟正在运行
-          p->alarm_ticks = p->alarm_interval;
-          // jump to execute alarm_handler
-          *p->alarm_trapframe = *p->trapframe; // backup trapframe
-          p->trapframe->epc = (uint64)p->alarm_handler;
-          p->alarm_goingoff = 1;
-        }
-        // 如果一个时钟到期的时候已经有一个时钟处理函数正在运行，则会推迟到原处理函数运行完成后的下一个 tick 才触发这次时钟
-      }
-    }
+  if(which_dev == 2)
     yield();
-  }
 
   usertrapret();
 }
@@ -239,19 +218,3 @@ devintr()
   }
 }
 
-int sigalarm(int ticks, void(*handler)()) {
-  // 设置 myproc 中的相关属性
-  struct proc *p = myproc();
-  p->alarm_interval = ticks;
-  p->alarm_handler = handler;
-  p->alarm_ticks = ticks;
-  return 0;
-}
-
-int sigreturn() {
-  // 将 trapframe 恢复到时钟中断之前的状态，恢复原本正在执行的程序流
-  struct proc *p = myproc();
-  *p->trapframe = *p->alarm_trapframe;
-  p->alarm_goingoff = 0;
-  return 0;
-}
