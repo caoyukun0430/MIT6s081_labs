@@ -80,7 +80,6 @@ int             pipewrite(struct pipe*, uint64, int);
 void            printf(char*, ...);
 void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
-void            backtrace(void); // new
 
 // proc.c
 int             cpuid(void);
@@ -146,8 +145,6 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
-int             sigalarm(int, void(*fn)(void));
-int             sigreturn(void);
 
 // uart.c
 void            uartinit(void);
@@ -159,7 +156,6 @@ int             uartgetc(void);
 // vm.c
 void            kvminit(void);
 void            kvminithart(void);
-uint64          kvmpa(uint64);
 void            kvmmap(uint64, uint64, uint64, int);
 int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
