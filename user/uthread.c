@@ -11,14 +11,34 @@
 #define MAX_THREAD  4
 
 
+// refer proc.h Saved registers for kernel context switches.
+struct context {
+  uint64 ra;
+  uint64 sp;
+
+  // callee-saved
+  uint64 s0;
+  uint64 s1;
+  uint64 s2;
+  uint64 s3;
+  uint64 s4;
+  uint64 s5;
+  uint64 s6;
+  uint64 s7;
+  uint64 s8;
+  uint64 s9;
+  uint64 s10;
+  uint64 s11;
+};
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  struct context context;       // 在 thread 中添加 context 结构体
 
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
-extern void thread_switch(uint64, uint64);
+extern void thread_switch(struct context*, struct context*); // 修改 thread_switch 函数声明
               
 void 
 thread_init(void)
@@ -61,12 +81,14 @@ thread_schedule(void)
     current_thread = next_thread;
     /* YOUR CODE HERE
      * Invoke thread_switch to switch from t to next_thread:
-     * thread_switch(??, ??);
+     * follow scheduler()
      */
+    thread_switch(&t->context, &next_thread->context);
   } else
     next_thread = 0;
 }
 
+//在uthread.c的thread_create()中,第一次创建进程时需要初始化ra和sp寄存器. ra寄存器需要存放传入的函数地址, sp寄存器传入当前线程的栈底(最开始的位置)
 void 
 thread_create(void (*func)())
 {
@@ -76,7 +98,11 @@ thread_create(void (*func)())
     if (t->state == FREE) break;
   }
   t->state = RUNNABLE;
-  // YOUR CODE HERE
+  t->context.ra = (uint64)func;
+  // thread_switch 的结尾会返回到 ra，从而运行线程代码thread_x()
+  t->context.sp = (uint64)&t->stack + (STACK_SIZE - 1);  // 栈指针
+  // 将线程的栈指针指向其独立的栈，注意到栈的生长是从高地址到低地址，所以
+  // 要将 sp 设置为指向 stack 的最高地址
 }
 
 void 
