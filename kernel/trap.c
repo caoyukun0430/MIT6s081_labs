@@ -67,12 +67,6 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else if((r_scause() == 13 || r_scause() == 15) && uvmcheckcowpage(r_stval())) { 
-    // 在usertrap()中用scause() == 13 || scause() == 15来判断是否为page fault copy-on-write
-    // 在 fork 的时候不复制数据只建立映射+标记，在进程尝试写入的时候进行实复制并重新映射为可写。
-    if(uvmcowcopy(r_stval()) == -1){ // 如果内存不足，则杀死进程
-      p->killed = 1;
-    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
