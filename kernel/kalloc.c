@@ -21,12 +21,27 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+} kmem[NCPU]; // 为每个 CPU 分配独立的 freelist，并用独立的锁保护它
+
+char *kmem_lock_names[] = {
+  "kmem_cpu_0",
+  "kmem_cpu_1",
+  "kmem_cpu_2",
+  "kmem_cpu_3",
+  "kmem_cpu_4",
+  "kmem_cpu_5",
+  "kmem_cpu_6",
+  "kmem_cpu_7",
+};
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  // call initlock for each of your locks, and pass a name that starts with "kmem"
+  for (int i = 0; i < NCPU; i++) {
+    initlock(&kmem[i].lock, kmem_lock_names[i]);
+  }
+  
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -56,10 +71,18 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  // use push_off() and pop_off() to turn interrupts off and on
+  push_off();
+  // cpuid returns the current core number, but it's only safe to call it and use its result when interrupts are turned off.
+  int id = cpuid();
+
+  acquire(&kmem[id].lock);
+  // r is freed, so it's added to head of freelist
+  r->next = kmem[id].freelist;
+  // set r as head of freelist
+  kmem[id].freelist = r;
+  release(&kmem[id].lock);
+  pop_off();
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -69,12 +92,50 @@ void *
 kalloc(void)
 {
   struct run *r;
+  // use push_off() and pop_off() to turn interrupts off and on
+  push_off();
+  // cpuid returns the current core number, but it's only safe to call it and use its result when interrupts are turned off.
+  int id = cpuid();
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
+  acquire(&kmem[id].lock);
+  r = kmem[id].freelist; // 取出一个物理页。页表项本身就是物理页
   if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    kmem[id].freelist = r->next;
+  release(&kmem[id].lock);
+  //当发现freelist已经用完后，需要向其他CPU的freelist借用节点
+  if(!r){
+    for (int i = 0; i< NCPU; i++) {
+      if (i == id) continue; // not steal myself
+      acquire(&kmem[i].lock);
+      r = kmem[i].freelist;
+      // have left
+      if (r) {
+        kmem[i].freelist = r->next;// 取出一个物理页
+        release(&kmem[i].lock);
+        break;
+      }
+      release(&kmem[i].lock);
+    }
+  }
+  // if(!kmem[id].freelist) {
+  //   for (int i = 0; i< NCPU; i++) {
+  //     if (i == id) continue; // not steal myself
+  //     acquire(&kmem[i].lock);
+  //     // 考虑一次多偷几页
+  //     int steal_left = 64;
+  //     struct run *rr = kmem[i].freelist;
+  //     while(rr && steal_left) {
+  //       kmem[i].freelist = rr->next;
+  //       rr->next = kmem[id].freelist; // overwrite rr->next to point to curr cpu freelist
+  //       kmem[id].freelist = rr;
+  //       rr = kmem[i].freelist;
+  //       steal_left--;
+  //     }
+  //     release(&kmem[i].lock);
+  //     if(steal_left == 0) break; // done stealing
+  //   }
+  // }
+  pop_off(); // turn on intr
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
